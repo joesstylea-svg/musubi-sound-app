@@ -488,6 +488,7 @@ function setNav(k) {
 function showFlt(f) { flt = f; setNav(f); home(); }
 
 function home() {
+  history.replaceState(null, '', location.pathname + location.search);
   document.getElementById('v-home').style.display = 'block';
   document.getElementById('v-det').style.display = 'none';
   sel = null;
@@ -522,6 +523,7 @@ function home() {
 }
 
 function openDet(num) {
+  history.replaceState(null, '', '#ep-' + num);
   sel = num;
   var ep = null;
   for (var i=0;i<eps.length;i++) if(eps[i].num===num){ ep=eps[i]; break; }
@@ -700,7 +702,10 @@ function openDet(num) {
   });
 }
 
-load();
+load().then(function(){
+  var h = location.hash;
+  if (h && h.slice(0, 4) === '#ep-') openDet(h.slice(4));
+});
 </script>
 </body>
 </html>
