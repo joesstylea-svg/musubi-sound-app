@@ -260,37 +260,44 @@ function parseBulk(t) {
   var r = {};
   if (!t) return r;
 
-  // セクション抽出: ━━...キーワード...━━ の直後から次の ━━━━━ まで
+  // セクション抽出: ━━━━━━ ④概要欄（EN＋JP） ━━━━━━ のような1行見出しを基準にする
+  // ③/④/⑤は番号だけでも認識するので、表記ゆれに強い
   function getSec(keyword) {
     var lines = t.split('\n');
     var found = false;
     var buf = [];
+
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
+
       if (!found) {
-        // ━が含まれ、かつkeywordが含まれる行を探す
-        if (line.indexOf('\u2501') >= 0 && line.indexOf(keyword) >= 0) {
+        if (line.indexOf('━') >= 0 && line.indexOf(keyword) >= 0) {
           found = true;
         }
       } else {
-        // 次の━━━━（5文字以上）が来たら終了
-        if (line.replace(/[^\u2501]/g,'').length >= 5) break;
+        // 次の ━━━━━ 見出しが来たら終了
+        if (line.replace(/[^━]/g,'').length >= 5) break;
         buf.push(line);
       }
     }
+
     return buf.join('\n').trim();
   }
 
-  r.title    = getSec('\u30bf\u30a4\u30c8\u30eb');   // タイトル
-  r.ytTitle  = getSec('\u2462YouTube');                // ③YouTube
-  r.desc     = getSec('\u2463\u6982\u8981\u6b04');    // ④概要欄
-  r.tags     = getSec('\u2464\u30cf\u30c3\u30b7\u30e5\u30bf\u30b0'); // ⑤ハッシュタグ
+  r.title   = getSec('タイトル');
+  r.ytTitle = getSec('③');
+  r.desc    = getSec('④');
+  r.tags    = getSec('⑤');
 
-  // 今回のシーン
-  var si = t.indexOf('\u300c\u4eca\u56de\u306e\u30b7\u30fc\u30f3\u300d'); // 【今回のシーン】
+  // 今回のシーン：通常表記と「追加」表記の両方を許可
+  var si = t.indexOf('【今回のシーン】');
+  if (si < 0) {
+    si = t.indexOf('【今回のシーン追加】');
+  }
+
   if (si >= 0) {
-    var rest = t.slice(si + 8);
-    var ni = rest.search(/\n\u2501{5}/);
+    var rest = t.slice(si);
+    var ni = rest.search(/\n━{5}/);
     r.scene = (ni >= 0 ? rest.slice(0, ni) : rest).trim();
   }
 
@@ -298,21 +305,26 @@ function parseBulk(t) {
   function getSuno(label, next) {
     var li = t.indexOf(label);
     if (li < 0) return '';
+
     var rest = t.slice(li + label.length);
     var ni = next ? rest.indexOf(next) : -1;
-    var ni2 = rest.search(/\n\u2501{5}/);
+    var ni2 = rest.search(/\n━{5}/);
     var end = -1;
+
     if (ni >= 0 && ni2 >= 0) end = Math.min(ni, ni2);
     else if (ni >= 0) end = ni;
     else if (ni2 >= 0) end = ni2;
+
     return (end >= 0 ? rest.slice(0, end) : rest).trim();
   }
-  r.sA = getSuno('\u3010A', '\u3010B'); // 【A】
-  r.sB = getSuno('\u3010B', '\u3010C'); // 【B】
-  r.sC = getSuno('\u3010C', null);       // 【C】
+
+  r.sA = getSuno('【A', '【B');
+  r.sB = getSuno('【B', '【C');
+  r.sC = getSuno('【C', null);
 
   return r;
 }
+
 
 function updProgress() {
   var done = eps.filter(function(x){return x.status==='done';}).length;
