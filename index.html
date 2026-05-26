@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MUSUBI SOUND</title>
+<!-- supabase-only-sync-fixed -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0ede6;color:#1a1a1a;}
@@ -139,7 +140,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0ede6;color:#1a1
       <p class="th-brand">MUSUBI<br>SOUND</p>
       <p class="th-sub">Healing Music Project Manager</p>
       <hr class="th-hr">
-      <p class="th-prog" id="prog-txt"><strong>0</strong> / 30 完了</p>
+      <p class="th-prog" id="prog-txt"><strong>0</strong> / 30 完了</p><p class="th-prog" id="sync-msg" style="font-size:10px;color:#999;margin-top:4px">Supabase同期中</p>
     </div>
   </div>
 </div>
@@ -230,9 +231,11 @@ function newEp(i) {
 }
 
 var eps = [], flt = 'all', sel = null;
+var syncing = false;
 
 function dbToEp(row){
-  var ep = newEp(Number(row.num || 1) - 1);
+  var idx = Math.max(0, Number(row.num || 1) - 1);
+  var ep = newEp(idx);
   ep.num = row.num || ep.num;
   ep.title = row.title || '';
   ep.bulk = row.bulk || '';
@@ -268,64 +271,112 @@ function epToDb(ep){
   };
 }
 
+function setSyncMessage(msg){
+  var el = document.getElementById('sync-msg');
+  if (el) el.textContent = msg || '';
+}
+
+async function ensureThirtyRows(client, rows){
+  var map = {};
+  (rows || []).forEach(function(r){ map[String(r.num).padStart(3,'0')] = true; });
+
+  var missing = [];
+  for (var i = 0; i < 30; i++) {
+    var n = String(i + 1).padStart(3,'0');
+    if (!map[n]) missing.push(epToDb(newEp(i)));
+  }
+
+  if (missing.length > 0) {
+    var ins = await client.from('episodes').upsert(missing, { onConflict: 'num' });
+    if (ins.error) {
+      console.warn('Supabase initial rows error:', ins.error);
+      setSyncMessage('Supabase初期化エラー');
+      return rows || [];
+    }
+    var again = await client.from('episodes').select('*').order('num', { ascending: true });
+    if (!again.error && again.data) return again.data;
+  }
+
+  return rows || [];
+}
+
 async function load() {
   document.getElementById('hgirl').src = GIRL;
 
-  var loaded = false;
   var client = initSupabase();
+  if (!client) {
+    eps = [];
+    for (var i = 0; i < 30; i++) eps.push(newEp(i));
+    setSyncMessage('Supabase未接続');
+    home();
+    return;
+  }
 
-  if (client) {
-    try {
-      var res = await client.from('episodes').select('*').order('num', { ascending: true });
-      if (!res.error && res.data) {
-        eps = res.data.map(dbToEp);
-        loaded = true;
-      } else {
-        console.warn('Supabase load error:', res.error);
-      }
-    } catch(e) {
-      console.warn('Supabase load failed:', e);
+  setSyncMessage('Supabase読み込み中...');
+
+  try {
+    var res = await client.from('episodes').select('*').order('num', { ascending: true });
+
+    if (res.error) {
+      console.warn('Supabase load error:', res.error);
+      eps = [];
+      for (var a = 0; a < 30; a++) eps.push(newEp(a));
+      setSyncMessage('Supabase読込エラー');
+      home();
+      return;
     }
-  }
 
-  if (!loaded) {
-    try {
-      var d = localStorage.getItem('musubi-s1');
-      eps = d ? JSON.parse(d) : [];
-    } catch(e) { eps = []; }
-  }
+    var rows = await ensureThirtyRows(client, res.data || []);
+    eps = rows.map(dbToEp);
 
-  if (eps.length < 30) {
     var existing = {};
-    for (var j=0;j<eps.length;j++) existing[eps[j].num] = true;
-    for (var i = 0; i < 30; i++) {
-      var n = String(i+1).padStart(3,'0');
-      if (!existing[n]) eps.push(newEp(i));
+    eps.forEach(function(ep){ existing[ep.num] = true; });
+    for (var b = 0; b < 30; b++) {
+      var n = String(b + 1).padStart(3,'0');
+      if (!existing[n]) eps.push(newEp(b));
     }
     eps.sort(function(a,b){ return Number(a.num) - Number(b.num); });
-  }
 
-  try { localStorage.setItem('musubi-s1', JSON.stringify(eps)); } catch(e) {}
-  home();
+    setSyncMessage('Supabase同期中');
+    home();
+  } catch(e) {
+    console.warn('Supabase load failed:', e);
+    eps = [];
+    for (var c = 0; c < 30; c++) eps.push(newEp(c));
+    setSyncMessage('Supabase接続エラー');
+    home();
+  }
 }
 
 var saveTimer = null;
 function save() {
-  try { localStorage.setItem('musubi-s1', JSON.stringify(eps)); } catch(e) {}
-
   var client = initSupabase();
-  if (!client) return;
+  if (!client) {
+    setSyncMessage('Supabase未接続');
+    return;
+  }
 
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async function(){
     try {
+      setSyncMessage('保存中...');
       var payload = eps.map(epToDb);
       var res = await client.from('episodes').upsert(payload, { onConflict: 'num' });
-      if (res.error) console.warn('Supabase save error:', res.error);
+      if (res.error) {
+        console.warn('Supabase save error:', res.error);
+        setSyncMessage('保存エラー');
+      } else {
+        setSyncMessage('保存済み / Supabase同期中');
+      }
     } catch(e) {
       console.warn('Supabase save failed:', e);
+      setSyncMessage('保存失敗');
     }
-  }, 400);
+  }, 300);
+}
+
+async function reloadFromSupabase(){
+  await load();
 }
 
 function getSt(k) {
