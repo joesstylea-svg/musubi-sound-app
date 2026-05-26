@@ -348,31 +348,31 @@ async function load() {
   }
 }
 
-var saveTimer = null;
-function save() {
-  var client = initSupabase();
-  if (!client) {
-    setSyncMessage('Supabase未接続');
-    return;
-  }
+var _saveTimer = null;
+function saveEp(ep) {
+  // localStorage にもバックアップ
+  try { localStorage.setItem('musubi-s1', JSON.stringify(eps)); } catch(e) {}
 
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(async function(){
+  var client = initSupabase();
+  if (!client) { setSyncMessage('未接続'); return; }
+
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async function(){
     try {
       setSyncMessage('保存中...');
-      var payload = eps.map(epToDb);
-      var res = await client.from('episodes').upsert(payload, { onConflict: 'num' });
+      var res = await client.from('episodes').upsert([epToDb(ep)], { onConflict: 'num' });
       if (res.error) {
         console.warn('Supabase save error:', res.error);
         setSyncMessage('保存エラー');
       } else {
-        setSyncMessage('保存済み / Supabase同期中');
+        setSyncMessage('✓ 保存済み');
+        setTimeout(function(){ setSyncMessage(''); }, 2000);
       }
     } catch(e) {
       console.warn('Supabase save failed:', e);
       setSyncMessage('保存失敗');
     }
-  }, 300);
+  }, 400);
 }
 
 async function reloadFromSupabase(){
@@ -621,14 +621,14 @@ function openDet(num) {
 
   document.getElementById('done-btn').onclick = function(){
     ep.status = ep.status==='done' ? 'edit' : 'done';
-    save(); openDet(num);
+    saveEp(ep); openDet(num);
   };
 
   document.querySelectorAll('#sr-row .sp').forEach(function(p){
     p.onclick = function(){
       var ns = p.dataset.s;
       ep.status = (ep.status===ns && ns!=='todo') ? 'todo' : ns;
-      save(); openDet(num);
+      saveEp(ep); openDet(num);
     };
   });
 
@@ -644,7 +644,7 @@ function openDet(num) {
     if (parsed.ytTitle)  { ep.ytTitle = parsed.ytTitle; }
     if (parsed.desc)     { ep.desc    = parsed.desc;    }
     if (parsed.tags)     { ep.tags    = parsed.tags;    }
-    save();
+    saveEp(ep);
     openDet(num);
     var t = document.getElementById('toast-msg');
     if (t) { t.classList.add('show'); setTimeout(function(){ t.classList.remove('show'); }, 2000); }
@@ -657,7 +657,7 @@ function openDet(num) {
         var tt = document.getElementById('d-ttl');
         if (tt) tt.textContent = el.value || '（タイトル未設定）';
       }
-      save();
+      saveEp(ep);
     });
   });
 
