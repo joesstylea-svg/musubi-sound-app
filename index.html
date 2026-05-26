@@ -76,6 +76,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0ede6;color:#1a1
 .s3{background:#fddde8;color:#6a1040;border-color:#e06090;}
 .s4{background:#ddeeff;color:#104080;border-color:#60a0e0;}
 .s5{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
+.sp-done{background:#e8f5e9;color:#2e7d32;border-color:#81c784;}
 
 .panel{background:#fff;border:.5px solid rgba(0,0,0,.08);border-radius:12px;margin-bottom:.75rem;overflow:hidden;}
 .p-hdr{padding:.625rem 1rem;background:#faf8f4;border-bottom:.5px solid rgba(0,0,0,.06);display:flex;align-items:center;justify-content:space-between;}
@@ -216,12 +217,14 @@ var GIRL = 'data:image/webp;base64,UklGRtAnAABXRUJQVlA4IMQnAADQbgCdASrrAMgAPlEij
 
 var BASE = '添付画像の女の子を基準にしてください。\n【人物固定（重要）】\n同じ人物として描くこと。顔、髪型、メガネ、雰囲気は変えない。\n・20代後半くらい ・黒髪 ・ゆるいお団子ヘア ・前髪あり ・少し後れ毛あり ・丸メガネ（細フレーム）・優しい目元 ・柔らかい口元 ・少し知的で穏やかな印象 ・リラックスした空気感 ・頑張りすぎていない自然な雰囲気\n【画風固定】\n・黒インク線＋ハーフトーン（網点）・レトロ漫画×雑誌挿絵風 ・映画のワンシーンのような空気感 ・ベージュ、ブラック、くすみカラー中心 ・手描き感あり ・温かい質感 ・細かい描き込み ・洗練されたカフェ系イラスト\n【世界観固定】\n・ジャズ ・癒し ・カフェ ・読書 ・アロマ ・自分時間 ・都会の静かな空気 ・落ち着いた大人の世界観\n【構図】\n自然な日常のワンシーン / 人物メイン / 空間の余白を大切にする / 雑誌表紙のような構図\n【禁止事項】\n・人物を別人にしない ・髪型を変えない ・メガネを消さない ・アニメ風にしすぎない ・派手な色を使わない ・文字を入れない ・ロゴを入れない\n必ず添付画像と同一人物として描いてください。新しいキャラクターを作らないこと。顔の特徴や雰囲気を維持すること。\n【今回のシーン追加】';
 
+var DRIVE_FOLDER = 'https://drive.google.com/drive/folders/1__xidY_0OXpBgSb4Xa06f3kBZQMW8Zbe?usp=drive_link';
+
 var ST = [
   {k:'todo',l:'未着手',b:'b0',s:'s0'},
   {k:'img', l:'画像済',b:'b1',s:'s1'},
-  {k:'music',l:'音楽済',b:'b2',s:'s2'},
+  {k:'music',l:'SUNO済',b:'b2',s:'s2'},
   {k:'thumb',l:'サムネ済',b:'b3',s:'s3'},
-  {k:'edit',l:'編集中',b:'b4',s:'s4'},
+  {k:'edit',l:'動画済',b:'b4',s:'s4'},
   {k:'done',l:'アップ済',b:'b5',s:'s5'}
 ];
 
@@ -529,8 +532,13 @@ function openDet(num) {
   dv.style.display = 'block';
   updProgress();
 
-  var sH = ST.map(function(s){
-    return '<button class="sp '+(ep.status===s.k?s.s:'')+'" data-s="'+s.k+'">'+s.l+'</button>';
+  var curIdx = 0;
+  for (var si = 0; si < ST.length; si++) { if (ST[si].k === ep.status) { curIdx = si; break; } }
+  var sH = ST.map(function(s, idx){
+    var isDone = idx < curIdx;
+    var isCur = s.k === ep.status;
+    var cls = 'sp ' + (isCur ? s.s : (isDone ? 'sp-done' : ''));
+    return '<button class="'+cls+'" data-s="'+s.k+'">'+(isDone?'✓ ':'')+s.l+'</button>';
   }).join('');
 
   var sunoF = [{k:'sA',l:'Suno A（王道）'},{k:'sB',l:'Suno B（Bossa Nova）'},{k:'sC',l:'Suno C（City Pop）'}];
@@ -599,7 +607,9 @@ function openDet(num) {
     +'</div></div>'
 
     // リンク
-    +'<div class="panel"><div class="p-hdr"><p class="p-ttl">リンク</p></div><div class="p-body">'
+    +'<div class="panel"><div class="p-hdr"><p class="p-ttl">リンク</p>'
+      +'<a class="l-btn" href="'+DRIVE_FOLDER+'" target="_blank" style="font-size:11px;background:#e8f5e9;border-color:#81c784;color:#2e7d32;">'+exIco+' 共有ドライブを開く</a>'
+    +'</div><div class="p-body">'
       +'<div class="lrow">'
         +'<svg viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" width="16" height="16" style="flex-shrink:0"><path d="M22 16.5L15 4.5H9L2 16.5"/><polyline points="2 16.5 9 19.5 15 19.5 22 16.5"/><line x1="9" y1="4.5" x2="15" y2="19.5"/></svg>'
         +'<input type="url" class="l-in" data-f="driveUrl" value="'+escA(ep.driveUrl)+'" placeholder="EPフォルダ (Google Drive)">'
