@@ -500,12 +500,15 @@ function parseBulk(t) {
   var r = {};
   if (!t) return r;
 
+  t = String(t).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
   // セクション抽出
   // 対応形式:
   // 1) ━━━━━━ ③YouTubeタイトル候補 ━━━━━━
   // 2) ━━━━━━
   //    ③YouTubeタイトル候補
   //    ━━━━━━
+  // 3) ③YouTubeタイトル候補
   function getSec(keyword) {
     var lines = t.split('\n');
     var found = false;
@@ -522,27 +525,23 @@ function parseBulk(t) {
       var line = lines[i];
 
       if (!found) {
-        // 1行見出し: ━━━━━━ ③YouTubeタイトル候補 ━━━━━━
         if (isRule(line) && hasKeyword(line)) {
           found = true;
           continue;
         }
 
-        // 3行見出し: ━━━━━━ / ③YouTubeタイトル候補 / ━━━━━━
         if (isRule(line) && hasKeyword(lines[i + 1] || '')) {
           found = true;
           i += 2;
           continue;
         }
 
-        // 念のため、単独見出し行にも対応: ③YouTubeタイトル候補
         if (hasKeyword(line)) {
           found = true;
           if (isRule(lines[i + 1] || '')) i += 1;
           continue;
         }
       } else {
-        // 次のセクション罫線で終了
         if (isRule(line)) break;
         buf.push(line);
       }
@@ -559,24 +558,28 @@ function parseBulk(t) {
 
   // 今回のシーン：通常表記と「追加」表記の両方を許可
   var si = t.indexOf('【今回のシーン】');
-  if (si < 0) {
-    si = t.indexOf('【今回のシーン追加】');
-  }
+  if (si < 0) si = t.indexOf('【今回のシーン追加】');
 
   if (si >= 0) {
     var rest = t.slice(si);
-    var ni = rest.search(/\n━{5}/);
+    var ni = rest.search(/\n━{5,}/);
     r.scene = (ni >= 0 ? rest.slice(0, ni) : rest).trim();
   }
 
-  // Suno A/B/C
-  function getSuno(label, next) {
-    var li = t.indexOf(label);
-    if (li < 0) return '';
+  // SUNO A/B/C
+  // 【A】 / 【A / A などをゆるく許容
+  function getSuno(letter, nextLetter) {
+    var label = new RegExp('(?:^|\\n)\\s*【?\\s*' + letter + '\\s*】?\\s*\\n', 'i');
+    var m = label.exec(t);
+    if (!m) return '';
 
-    var rest = t.slice(li + label.length);
-    var ni = next ? rest.indexOf(next) : -1;
-    var ni2 = rest.search(/\n━{5}/);
+    var rest = t.slice(m.index + m[0].length);
+    var nextRe = nextLetter
+      ? new RegExp('\\n\\s*【?\\s*' + nextLetter + '\\s*】?\\s*\\n', 'i')
+      : /\n━{5,}/;
+
+    var ni = nextLetter ? rest.search(nextRe) : -1;
+    var ni2 = rest.search(/\n━{5,}/);
     var end = -1;
 
     if (ni >= 0 && ni2 >= 0) end = Math.min(ni, ni2);
@@ -586,28 +589,107 @@ function parseBulk(t) {
     return (end >= 0 ? rest.slice(0, end) : rest).trim();
   }
 
-  r.sA = getSuno('【A', '【B');
-  r.sB = getSuno('【B', '【C');
-  r.sC = getSuno('【C', null);
+  r.sA = getSuno('A', 'B');
+  r.sB = getSuno('B', 'C');
+  r.sC = getSuno('C', null);
 
-  // MUSUBI DAYS用: Scene 1/2/3 のゆるい抽出
+  // ━━ MUSUBI DAYS用：Scene 1/2/3 を抽出 ━━
+  // 対応形式:
+  // 【Scene 1】
+  // 画像プロンプト
+  // ...
+  // 画面テキスト
+  // ...
+  //
+  // 旧形式も一部許容:
+  // Scene 1画像プロンプト
+  // ...
+  // Scene 1画面テキスト
+  // ...
   function getSceneBlock(n) {
-    var re = new RegExp('(?:Scene|シーン)\\s*' + n + '[^\\n]*\\n([\\s\\S]*?)(?=(?:\\n(?:Scene|シーン)\\s*' + (n+1) + ')|\\n━{5}|$)', 'i');
+    var next = n + 1;
+
+    var re = new RegExp(
+      '(?:^|\\n)\\s*【?\\s*(?:Scene|シーン)\\s*' + n + '\\s*】?\\s*\\n' +
+      '([\\s\\S]*?)' +
+      '(?=' +
+        '\\n\\s*【?\\s*(?:Scene|シーン)\\s*' + next + '\\s*】?\\s*\\n' +
+        '|\\n━{5,}' +
+        '|$' +
+      ')',
+      'i'
+    );
+
     var m = t.match(re);
     return m ? m[1].trim() : '';
   }
-  function splitPromptText(block) {
+
+  function getOldStylePart(n, kind) {
+    var nextKind = kind === '画像プロンプト' ? '画面テキスト' : null;
+    var endPattern;
+    if (nextKind) {
+      endPattern = '\\n\\s*(?:Scene|シーン)\\s*' + n + '\\s*' + nextKind;
+    } else {
+      endPattern =
+        '\\n\\s*(?:Scene|シーン)\\s*' + (n + 1) + '\\s*(?:画像プロンプト|画面テキスト)' +
+        '|\\n━{5,}|$';
+    }
+
+    var re = new RegExp(
+      '(?:^|\\n)\\s*(?:Scene|シーン)\\s*' + n + '\\s*' + kind + '\\s*[:：]?\\s*\\n' +
+      '([\\s\\S]*?)' +
+      '(?=' + endPattern + ')',
+      'i'
+    );
+
+    var m = t.match(re);
+    return m ? m[1].trim() : '';
+  }
+
+  function splitPromptText(block, n) {
     var out = {prompt:'', text:''};
-    if (!block) return out;
-    var mPrompt = block.match(/(?:画像プロンプト|Image Prompt|Prompt)[:：]?([\\s\\S]*?)(?=(?:画面テキスト|Text|テロップ)[:：]|$)/i);
-    var mText = block.match(/(?:画面テキスト|Text|テロップ)[:：]?([\\s\\S]*)/i);
-    out.prompt = (mPrompt ? mPrompt[1] : block).trim();
-    out.text = (mText ? mText[1] : '').trim();
+    if (!block) {
+      // 旧形式のみの場合
+      out.prompt = getOldStylePart(n, '画像プロンプト');
+      out.text = getOldStylePart(n, '画面テキスト');
+      return out;
+    }
+
+    var mPrompt = block.match(
+      /(?:^|\n)\s*(?:画像プロンプト|Image Prompt|Prompt)\s*[:：]?\s*\n([\s\S]*?)(?=\n\s*(?:画面テキスト|Text|テロップ)\s*[:：]?|\n\s*(?:Scene|シーン)\s*\d+\s*画面テキスト\s*[:：]?|$)/i
+    );
+
+    var mText = block.match(
+      /(?:^|\n)\s*(?:画面テキスト|Text|テロップ)\s*[:：]?\s*\n([\s\S]*)$/i
+    );
+
+    // 旧形式が混ざった場合の保険
+    if (!mPrompt) {
+      var oldP = getOldStylePart(n, '画像プロンプト');
+      if (oldP) out.prompt = oldP;
+    } else {
+      out.prompt = mPrompt[1].trim();
+    }
+
+    if (!mText) {
+      var oldT = getOldStylePart(n, '画面テキスト');
+      if (oldT) out.text = oldT;
+    } else {
+      out.text = mText[1].trim();
+    }
+
+    // ラベルなしでブロックだけ取れた場合は画像プロンプト扱い
+    if (!out.prompt && !out.text && block) {
+      out.prompt = block.trim();
+    }
+
     return out;
   }
-  var d1 = splitPromptText(getSceneBlock(1));
-  var d2 = splitPromptText(getSceneBlock(2));
-  var d3 = splitPromptText(getSceneBlock(3));
+
+  var d1 = splitPromptText(getSceneBlock(1), 1);
+  var d2 = splitPromptText(getSceneBlock(2), 2);
+  var d3 = splitPromptText(getSceneBlock(3), 3);
+
   if (d1.prompt) r.daysScene1Prompt = d1.prompt;
   if (d1.text) r.daysScene1Text = d1.text;
   if (d2.prompt) r.daysScene2Prompt = d2.prompt;
@@ -617,7 +699,6 @@ function parseBulk(t) {
 
   return r;
 }
-
 
 function updProgress() {
   var list = visibleBySeries(eps);
