@@ -297,11 +297,12 @@ function dbToEp(row){
   ep.driveUrl = row.driveurl || row.driveUrl || '';
   ep.ytUrl = row.yturl || row.ytUrl || '';
   ep.status = row.status || 'todo';
-  ep.imgDone = !!(row.img_done || row.imgDone || ep.status === 'img' || ep.status === 'music' || ep.status === 'thumb' || ep.status === 'edit' || ep.status === 'done');
-  ep.musicDone = !!(row.music_done || row.musicDone || ep.status === 'music' || ep.status === 'thumb' || ep.status === 'edit' || ep.status === 'done');
-  ep.thumbDone = !!(row.thumb_done || row.thumbDone || ep.status === 'thumb' || ep.status === 'edit' || ep.status === 'done');
-  ep.editDone = !!(row.edit_done || row.editDone || ep.status === 'edit' || ep.status === 'done');
-  ep.doneDone = !!(row.done_done || row.doneDone || ep.status === 'done');
+  // 独立チェック：status から逆算しない。Supabaseの各 boolean をそのまま読む。
+  ep.imgDone = row.img_done === true || row.imgDone === true;
+  ep.musicDone = row.music_done === true || row.musicDone === true;
+  ep.thumbDone = row.thumb_done === true || row.thumbDone === true;
+  ep.editDone = row.edit_done === true || row.editDone === true;
+  ep.doneDone = row.done_done === true || row.doneDone === true;
   ep.status = calcStatus(ep);
   return ep;
 }
@@ -387,6 +388,19 @@ async function load() {
 }
 
 var _saveTimer = null;
+async function saveEpNow(ep) {
+  ep.status = calcStatus(ep);
+  try { localStorage.setItem('musubi-s1', JSON.stringify(eps)); } catch(e) {}
+  var client = initSupabase();
+  if (!client) { setSyncMessage('未接続'); return; }
+  try {
+    setSyncMessage('保存中...');
+    var res = await client.from('episodes').upsert([epToDb(ep)], { onConflict: 'num' });
+    if (res.error) { console.warn('Supabase save error:', res.error); setSyncMessage('保存エラー'); }
+    else { setSyncMessage('✓ 保存済み'); setTimeout(function(){ setSyncMessage(''); }, 2000); }
+  } catch(e) { console.warn('Supabase save failed:', e); setSyncMessage('保存失敗'); }
+}
+
 function saveEp(ep) {
   ep.status = calcStatus(ep);
   // localStorage にもバックアップ
@@ -611,7 +625,7 @@ async function createNewEpisode(type){
   ep.title = type === 'days' ? 'MUSUBI DAYS ' + ep.num : 'MUSUBI SOUND ' + ep.num;
   eps.push(ep);
   eps.sort(function(a,b){ return Number(a.num) - Number(b.num); });
-  saveEp(ep);
+  await saveEpNow(ep);
   home();
   openDet(ep.num);
 }
@@ -646,7 +660,7 @@ function home() {
   document.getElementById('fil-row').innerHTML = fls.map(function(f){
     return '<button class="fil ' + (flt===f.k?'on':'') + '" data-f="'+f.k+'">'+f.l+'</button>';
   }).join('');
-  document.querySelectorAll('.fil').forEach(function(b){
+  document.querySelectorAll('#fil-row .fil').forEach(function(b){
     b.onclick = function(){ flt = b.dataset.f; home(); };
   });
 
