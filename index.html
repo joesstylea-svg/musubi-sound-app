@@ -648,56 +648,67 @@ function parseBulk(t) {
 
   function splitPromptText(block, n) {
     var out = {prompt:'', text:''};
+
+    // 旧形式だけの場合:
+    // Scene 1画像プロンプト / Scene 1画面テキスト
     if (!block) {
-      // 旧形式のみの場合
       out.prompt = getOldStylePart(n, '画像プロンプト');
       out.text = getOldStylePart(n, '画面テキスト');
       return out;
     }
 
-    var mPrompt = block.match(
-      /(?:^|\n)\s*(?:画像プロンプト|Image Prompt|Prompt)\s*[:：]?\s*\n([\s\S]*?)(?=\n\s*(?:画面テキスト|Text|テロップ)\s*[:：]?|\n\s*(?:Scene|シーン)\s*\d+\s*画面テキスト\s*[:：]?|$)/i
-    );
+    block = String(block || '').trim();
 
-    var mText = block.match(
-      /(?:^|\n)\s*(?:画面テキスト|Text|テロップ)\s*[:：]?\s*\n([\s\S]*)$/i
-    );
+    // Sceneブロック内のラベル表記をゆるく定義
+    // 画像プロンプト は省略されることがあるので必須にしない
+    var textLabelRe = /(?:^|\n)\s*(?:画面テキスト|テロップ|Text|Screen Text|Caption)\s*[:：]?\s*\n/i;
+    var promptLabelRe = /(?:^|\n)\s*(?:画像プロンプト|画像生成プロンプト|Image Prompt|Prompt)\s*[:：]?\s*\n/i;
 
-    // 旧形式が混ざった場合の保険
-    if (!mPrompt) {
-      var oldP = getOldStylePart(n, '画像プロンプト');
-      if (oldP) out.prompt = oldP;
-    } else {
-      out.prompt = mPrompt[1].trim();
-    }
+    var textMatch = textLabelRe.exec(block);
 
-    if (!mText) {
-      var oldT = getOldStylePart(n, '画面テキスト');
-      if (oldT) out.text = oldT;
-    } else {
-      out.text = mText[1].trim();
-    }
-
-    // ラベルなしでブロックだけ取れた場合の保険。
-    // 例：
+    // 最重要:
+    // 「画像プロンプト」ラベルが無くても、
+    // 「画面テキスト」ラベルがあれば、その前を画像プロンプト、その後を画面テキストにする。
+    //
+    // 例:
     // 【Scene 1】
     // 夏の朝の静かなワンルーム...
+    // このプロンプトを説明せず...
     // 画面テキスト
     // 少しだけ早く目が覚めた朝。
-    // → 画像プロンプトラベルが無くても、画面テキスト以降を分離する。
-    if (!out.prompt && !out.text && block) {
-      var autoSplit = block.match(
-        /([\s\S]*?)\n\s*(?:画面テキスト|Text|テロップ)\s*[:：]?\s*\n([\s\S]*)$/i
-      );
+    if (textMatch) {
+      var beforeText = block.slice(0, textMatch.index).trim();
+      var afterText = block.slice(textMatch.index + textMatch[0].length).trim();
 
-      if (autoSplit) {
-        out.prompt = autoSplit[1].trim();
-        out.text = autoSplit[2].trim();
-      } else {
-        out.prompt = block.trim();
+      // beforeTextの先頭に「画像プロンプト」ラベルがある場合だけ除去する
+      var promptMatch = promptLabelRe.exec(beforeText);
+      if (promptMatch && promptMatch.index === 0) {
+        beforeText = beforeText.slice(promptMatch[0].length).trim();
       }
+
+      out.prompt = beforeText;
+      out.text = afterText;
+      return out;
     }
 
+    // 「画面テキスト」ラベルが無い場合でも、画像プロンプトラベルがあるなら本文を画像プロンプトに入れる
+    var pMatch = promptLabelRe.exec(block);
+    if (pMatch) {
+      out.prompt = block.slice(pMatch.index + pMatch[0].length).trim();
+      return out;
+    }
+
+    // 旧形式が混ざった場合の保険
+    var oldP = getOldStylePart(n, '画像プロンプト');
+    var oldT = getOldStylePart(n, '画面テキスト');
+    if (oldP || oldT) {
+      out.prompt = oldP || '';
+      out.text = oldT || '';
+      return out;
+    }
+
+    // どうしても分離できない場合はScene全体を画像プロンプトに入れる
+    out.prompt = block.trim();
     return out;
   }
 
