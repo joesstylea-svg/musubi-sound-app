@@ -500,23 +500,50 @@ function parseBulk(t) {
   var r = {};
   if (!t) return r;
 
-  // セクション抽出: ━━━━━━ ④概要欄（EN＋JP） ━━━━━━ のような1行見出しを基準にする
-  // ③/④/⑤は番号だけでも認識するので、表記ゆれに強い
+  // セクション抽出
+  // 対応形式:
+  // 1) ━━━━━━ ③YouTubeタイトル候補 ━━━━━━
+  // 2) ━━━━━━
+  //    ③YouTubeタイトル候補
+  //    ━━━━━━
   function getSec(keyword) {
     var lines = t.split('\n');
     var found = false;
     var buf = [];
 
+    function isRule(line) {
+      return (line || '').replace(/[^━]/g, '').length >= 5;
+    }
+    function hasKeyword(line) {
+      return (line || '').indexOf(keyword) >= 0;
+    }
+
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
 
       if (!found) {
-        if (line.indexOf('━') >= 0 && line.indexOf(keyword) >= 0) {
+        // 1行見出し: ━━━━━━ ③YouTubeタイトル候補 ━━━━━━
+        if (isRule(line) && hasKeyword(line)) {
           found = true;
+          continue;
+        }
+
+        // 3行見出し: ━━━━━━ / ③YouTubeタイトル候補 / ━━━━━━
+        if (isRule(line) && hasKeyword(lines[i + 1] || '')) {
+          found = true;
+          i += 2;
+          continue;
+        }
+
+        // 念のため、単独見出し行にも対応: ③YouTubeタイトル候補
+        if (hasKeyword(line)) {
+          found = true;
+          if (isRule(lines[i + 1] || '')) i += 1;
+          continue;
         }
       } else {
-        // 次の ━━━━━ 見出しが来たら終了
-        if (line.replace(/[^━]/g,'').length >= 5) break;
+        // 次のセクション罫線で終了
+        if (isRule(line)) break;
         buf.push(line);
       }
     }
