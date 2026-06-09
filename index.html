@@ -46,6 +46,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0ede6;color:#1a1
 
 /* フィルター */
 .filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;}
+.action-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+.series-row{display:flex;gap:6px;flex-wrap:wrap;}
+.add-btn{background:#1a1a1a;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
+.add-btn:hover{background:#333;}
+
 .fil{font-size:11px;padding:4px 12px;border-radius:16px;border:.5px solid rgba(0,0,0,.12);background:transparent;cursor:pointer;color:#666;font-family:inherit;transition:all .15s;}
 .fil.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
 
@@ -77,6 +82,8 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0ede6;color:#1a1
 .s4{background:#ddeeff;color:#104080;border-color:#60a0e0;}
 .s5{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
 .sp-done{background:#e8f5e9;color:#2e7d32;border-color:#81c784;}
+.sp-muted{background:#f5f2ec;color:#aaa;border-color:#e0dbd2;}
+.bdg-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;}
 
 .panel{background:#fff;border:.5px solid rgba(0,0,0,.08);border-radius:12px;margin-bottom:.75rem;overflow:hidden;}
 .p-hdr{padding:.625rem 1rem;background:#faf8f4;border-bottom:.5px solid rgba(0,0,0,.06);display:flex;align-items:center;justify-content:space-between;}
@@ -95,6 +102,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0ede6;color:#1a1
 .f-ta{width:100%;min-height:52px;padding:7px 10px;border:.5px solid rgba(0,0,0,.1);border-radius:8px;font-family:inherit;font-size:12px;resize:vertical;background:#fff;color:#444;line-height:1.6;outline:none;}
 .f-ta:focus{border-color:#888;}
 .f-in{width:100%;padding:7px 10px;border:.5px solid rgba(0,0,0,.1);border-radius:8px;font-family:inherit;font-size:13px;color:#1a1a1a;outline:none;font-weight:600;}
+.f-sel{width:100%;padding:7px 10px;border:.5px solid rgba(0,0,0,.1);border-radius:8px;font-family:inherit;font-size:12px;color:#1a1a1a;outline:none;background:#fff;font-weight:700;}
 .f-in:focus{border-color:#888;}
 .lrow{display:flex;gap:7px;align-items:center;margin-bottom:8px;}
 .l-in{flex:1;padding:6px 10px;border:.5px solid rgba(0,0,0,.1);border-radius:8px;font-family:inherit;font-size:11px;color:#444;min-width:0;outline:none;}
@@ -182,6 +190,10 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0ede6;color:#1a1
         </div>
         <svg viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2" width="18" height="18" style="flex-shrink:0;margin-left:auto"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
       </div>
+      <div class="action-row">
+        <div class="series-row" id="series-row"></div>
+        <button class="add-btn" id="add-ep-btn">＋ 新規エピソード</button>
+      </div>
       <div class="filter-row" id="fil-row"></div>
       <div class="grid" id="ep-grid"></div>
     </div>
@@ -220,29 +232,62 @@ var BASE = '添付画像の女の子を基準にしてください。\n【人物
 var DRIVE_FOLDER = 'https://drive.google.com/drive/folders/1__xidY_0OXpBgSb4Xa06f3kBZQMW8Zbe?usp=drive_link';
 
 var ST = [
-  {k:'todo',l:'未着手',b:'b0',s:'s0'},
-  {k:'img', l:'画像済',b:'b1',s:'s1'},
-  {k:'music',l:'SUNO済',b:'b2',s:'s2'},
-  {k:'thumb',l:'サムネ済',b:'b3',s:'s3'},
-  {k:'edit',l:'動画済',b:'b4',s:'s4'},
-  {k:'done',l:'アップ済',b:'b5',s:'s5'}
+  {k:'todo',l:'未着手',b:'b0',s:'s0',flag:null},
+  {k:'img', l:'画像済',b:'b1',s:'s1',flag:'imgDone'},
+  {k:'music',l:'SUNO済',b:'b2',s:'s2',flag:'musicDone'},
+  {k:'thumb',l:'サムネ済',b:'b3',s:'s3',flag:'thumbDone'},
+  {k:'edit',l:'動画済',b:'b4',s:'s4',flag:'editDone'},
+  {k:'done',l:'アップ済',b:'b5',s:'s5',flag:'doneDone'}
 ];
 
 function newEp(i) {
   var n = String(i+1).padStart(3,'0');
-  return {num:n,title:'',bulk:'',scene:'',sA:'',sB:'',sC:'',ytTitle:'',desc:'',tags:'',driveUrl:'',ytUrl:'',status:'todo'};
+  return {
+    num:n,
+    contentType:'sound',
+    title:'',
+    bulk:'',
+    scene:'',
+    daysScene1Prompt:'',
+    daysScene1Text:'',
+    daysScene2Prompt:'',
+    daysScene2Text:'',
+    daysScene3Prompt:'',
+    daysScene3Text:'',
+    sA:'',
+    sB:'',
+    sC:'',
+    ytTitle:'',
+    desc:'',
+    tags:'',
+    driveUrl:'',
+    ytUrl:'',
+    status:'todo',
+    imgDone:false,
+    musicDone:false,
+    thumbDone:false,
+    editDone:false,
+    doneDone:false
+  };
 }
 
-var eps = [], flt = 'all', sel = null;
+var eps = [], flt = 'all', seriesFlt = 'all', sel = null;
 var syncing = false;
 
 function dbToEp(row){
   var idx = Math.max(0, Number(row.num || 1) - 1);
   var ep = newEp(idx);
   ep.num = row.num || ep.num;
+  ep.contentType = row.content_type || row.contentType || 'sound';
   ep.title = row.title || '';
   ep.bulk = row.bulk || '';
   ep.scene = row.scene || '';
+  ep.daysScene1Prompt = row.days_scene_1_prompt || row.daysScene1Prompt || '';
+  ep.daysScene1Text = row.days_scene_1_text || row.daysScene1Text || '';
+  ep.daysScene2Prompt = row.days_scene_2_prompt || row.daysScene2Prompt || '';
+  ep.daysScene2Text = row.days_scene_2_text || row.daysScene2Text || '';
+  ep.daysScene3Prompt = row.days_scene_3_prompt || row.daysScene3Prompt || '';
+  ep.daysScene3Text = row.days_scene_3_text || row.daysScene3Text || '';
   ep.sA = row.sa || row.sA || '';
   ep.sB = row.sb || row.sB || '';
   ep.sC = row.sc || row.sC || '';
@@ -252,15 +297,28 @@ function dbToEp(row){
   ep.driveUrl = row.driveurl || row.driveUrl || '';
   ep.ytUrl = row.yturl || row.ytUrl || '';
   ep.status = row.status || 'todo';
+  ep.imgDone = !!(row.img_done || row.imgDone || ep.status === 'img' || ep.status === 'music' || ep.status === 'thumb' || ep.status === 'edit' || ep.status === 'done');
+  ep.musicDone = !!(row.music_done || row.musicDone || ep.status === 'music' || ep.status === 'thumb' || ep.status === 'edit' || ep.status === 'done');
+  ep.thumbDone = !!(row.thumb_done || row.thumbDone || ep.status === 'thumb' || ep.status === 'edit' || ep.status === 'done');
+  ep.editDone = !!(row.edit_done || row.editDone || ep.status === 'edit' || ep.status === 'done');
+  ep.doneDone = !!(row.done_done || row.doneDone || ep.status === 'done');
+  ep.status = calcStatus(ep);
   return ep;
 }
 
 function epToDb(ep){
   return {
     num: ep.num,
+    content_type: ep.contentType || 'sound',
     title: ep.title || '',
     bulk: ep.bulk || '',
     scene: ep.scene || '',
+    days_scene_1_prompt: ep.daysScene1Prompt || '',
+    days_scene_1_text: ep.daysScene1Text || '',
+    days_scene_2_prompt: ep.daysScene2Prompt || '',
+    days_scene_2_text: ep.daysScene2Text || '',
+    days_scene_3_prompt: ep.daysScene3Prompt || '',
+    days_scene_3_text: ep.daysScene3Text || '',
     sa: ep.sA || '',
     sb: ep.sB || '',
     sc: ep.sC || '',
@@ -269,7 +327,12 @@ function epToDb(ep){
     tags: ep.tags || '',
     driveurl: ep.driveUrl || '',
     yturl: ep.ytUrl || '',
-    status: ep.status || 'todo',
+    img_done: !!ep.imgDone,
+    music_done: !!ep.musicDone,
+    thumb_done: !!ep.thumbDone,
+    edit_done: !!ep.editDone,
+    done_done: !!ep.doneDone,
+    status: calcStatus(ep),
     updated_at: new Date().toISOString()
   };
 }
@@ -280,26 +343,7 @@ function setSyncMessage(msg){
 }
 
 async function ensureThirtyRows(client, rows){
-  var map = {};
-  (rows || []).forEach(function(r){ map[String(r.num).padStart(3,'0')] = true; });
-
-  var missing = [];
-  for (var i = 0; i < 30; i++) {
-    var n = String(i + 1).padStart(3,'0');
-    if (!map[n]) missing.push(epToDb(newEp(i)));
-  }
-
-  if (missing.length > 0) {
-    var ins = await client.from('episodes').upsert(missing, { onConflict: 'num' });
-    if (ins.error) {
-      console.warn('Supabase initial rows error:', ins.error);
-      setSyncMessage('Supabase初期化エラー');
-      return rows || [];
-    }
-    var again = await client.from('episodes').select('*').order('num', { ascending: true });
-    if (!again.error && again.data) return again.data;
-  }
-
+  // 新規エピソード式：自動で30件を作らず、Supabaseにある行だけ読み込む
   return rows || [];
 }
 
@@ -309,7 +353,6 @@ async function load() {
   var client = initSupabase();
   if (!client) {
     eps = [];
-    for (var i = 0; i < 30; i++) eps.push(newEp(i));
     setSyncMessage('Supabase未接続');
     home();
     return;
@@ -323,7 +366,6 @@ async function load() {
     if (res.error) {
       console.warn('Supabase load error:', res.error);
       eps = [];
-      for (var a = 0; a < 30; a++) eps.push(newEp(a));
       setSyncMessage('Supabase読込エラー');
       home();
       return;
@@ -332,12 +374,6 @@ async function load() {
     var rows = await ensureThirtyRows(client, res.data || []);
     eps = rows.map(dbToEp);
 
-    var existing = {};
-    eps.forEach(function(ep){ existing[ep.num] = true; });
-    for (var b = 0; b < 30; b++) {
-      var n = String(b + 1).padStart(3,'0');
-      if (!existing[n]) eps.push(newEp(b));
-    }
     eps.sort(function(a,b){ return Number(a.num) - Number(b.num); });
 
     setSyncMessage('Supabase同期中');
@@ -345,7 +381,6 @@ async function load() {
   } catch(e) {
     console.warn('Supabase load failed:', e);
     eps = [];
-    for (var c = 0; c < 30; c++) eps.push(newEp(c));
     setSyncMessage('Supabase接続エラー');
     home();
   }
@@ -353,6 +388,7 @@ async function load() {
 
 var _saveTimer = null;
 function saveEp(ep) {
+  ep.status = calcStatus(ep);
   // localStorage にもバックアップ
   try { localStorage.setItem('musubi-s1', JSON.stringify(eps)); } catch(e) {}
 
@@ -386,9 +422,57 @@ function getSt(k) {
   for (var i=0;i<ST.length;i++) if(ST[i].k===k) return ST[i];
   return ST[0];
 }
+
+function calcStatus(ep) {
+  if (ep.doneDone) return 'done';
+  if (ep.editDone) return 'edit';
+  if (ep.thumbDone) return 'thumb';
+  if (ep.musicDone) return 'music';
+  if (ep.imgDone) return 'img';
+  return 'todo';
+}
+function matchesStatus(ep, key) {
+  if (key === 'all') return true;
+  if (key === 'todo') return !ep.imgDone && !ep.musicDone && !ep.thumbDone && !ep.editDone && !ep.doneDone;
+  if (key === 'img') return !!ep.imgDone;
+  if (key === 'music') return !!ep.musicDone;
+  if (key === 'thumb') return !!ep.thumbDone;
+  if (key === 'edit') return !!ep.editDone;
+  if (key === 'done') return !!ep.doneDone;
+  return calcStatus(ep) === key;
+}
+function statusButtonsHtml(ep){
+  return ST.map(function(s){
+    if (s.k === 'todo') {
+      var isTodo = matchesStatus(ep, 'todo');
+      return '<button class="sp '+(isTodo?s.s:'sp-muted')+'" data-s="todo">'+(isTodo?'✓ ':'')+s.l+'</button>';
+    }
+    var checked = !!ep[s.flag];
+    return '<button class="sp '+(checked?s.s:'sp-muted')+'" data-s="'+s.k+'">'+(checked?'✓ ':'')+s.l+'</button>';
+  }).join('');
+}
+function badgesHtml(ep){
+  var active = ST.filter(function(s){ return s.k !== 'todo' && !!ep[s.flag]; });
+  if (!active.length) active = [ST[0]];
+  return '<div class="bdg-row">' + active.map(function(s){ return '<span class="bdg '+s.b+'">'+s.l+'</span>'; }).join('') + '</div>';
+}
+function toggleStatusFlag(ep, key){
+  if (key === 'todo') {
+    ep.imgDone = false; ep.musicDone = false; ep.thumbDone = false; ep.editDone = false; ep.doneDone = false;
+  } else {
+    var s = getSt(key);
+    if (s && s.flag) ep[s.flag] = !ep[s.flag];
+  }
+  ep.status = calcStatus(ep);
+}
+
+function visibleBySeries(list){
+  return seriesFlt==='all' ? list : list.filter(function(x){ return (x.contentType||'sound')===seriesFlt; });
+}
 function getNext() {
-  for (var i=0;i<eps.length;i++) if(eps[i].status!=='done') return eps[i];
-  return eps[0];
+  var list = visibleBySeries(eps);
+  for (var i=0;i<list.length;i++) if(!list[i].doneDone) return list[i];
+  return list[0] || eps[0] || null;
 }
 function esc(s) {
   return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});
@@ -426,6 +510,7 @@ function parseBulk(t) {
     return buf.join('\n').trim();
   }
 
+  r.contentType = (t.indexOf('MUSUBI DAYS') >= 0) ? 'days' : ((t.indexOf('MUSUBI SOUND') >= 0) ? 'sound' : '');
   r.title   = getSec('タイトル');
   r.ytTitle = getSec('③');
   r.desc    = getSec('④');
@@ -464,14 +549,40 @@ function parseBulk(t) {
   r.sB = getSuno('【B', '【C');
   r.sC = getSuno('【C', null);
 
+  // MUSUBI DAYS用: Scene 1/2/3 のゆるい抽出
+  function getSceneBlock(n) {
+    var re = new RegExp('(?:Scene|シーン)\\s*' + n + '[^\\n]*\\n([\\s\\S]*?)(?=(?:\\n(?:Scene|シーン)\\s*' + (n+1) + ')|\\n━{5}|$)', 'i');
+    var m = t.match(re);
+    return m ? m[1].trim() : '';
+  }
+  function splitPromptText(block) {
+    var out = {prompt:'', text:''};
+    if (!block) return out;
+    var mPrompt = block.match(/(?:画像プロンプト|Image Prompt|Prompt)[:：]?([\\s\\S]*?)(?=(?:画面テキスト|Text|テロップ)[:：]|$)/i);
+    var mText = block.match(/(?:画面テキスト|Text|テロップ)[:：]?([\\s\\S]*)/i);
+    out.prompt = (mPrompt ? mPrompt[1] : block).trim();
+    out.text = (mText ? mText[1] : '').trim();
+    return out;
+  }
+  var d1 = splitPromptText(getSceneBlock(1));
+  var d2 = splitPromptText(getSceneBlock(2));
+  var d3 = splitPromptText(getSceneBlock(3));
+  if (d1.prompt) r.daysScene1Prompt = d1.prompt;
+  if (d1.text) r.daysScene1Text = d1.text;
+  if (d2.prompt) r.daysScene2Prompt = d2.prompt;
+  if (d2.text) r.daysScene2Text = d2.text;
+  if (d3.prompt) r.daysScene3Prompt = d3.prompt;
+  if (d3.text) r.daysScene3Text = d3.text;
+
   return r;
 }
 
 
 function updProgress() {
-  var done = eps.filter(function(x){return x.status==='done';}).length;
-  document.getElementById('prog-txt').innerHTML = '<strong>' + done + '</strong> / 30 完了';
-  document.getElementById('nb').textContent = '30';
+  var list = visibleBySeries(eps);
+  var done = list.filter(function(x){return !!x.doneDone;}).length;
+  document.getElementById('prog-txt').innerHTML = '<strong>' + done + '</strong> / ' + list.length + ' 完了';
+  document.getElementById('nb').textContent = String(eps.length);
 }
 
 function setNav(k) {
@@ -485,6 +596,28 @@ function setNav(k) {
   }
 }
 
+
+function getNextNum(){
+  var max = 0;
+  eps.forEach(function(ep){ var n = Number(ep.num); if(!isNaN(n) && n > max) max = n; });
+  return String(max + 1).padStart(3,'0');
+}
+
+async function createNewEpisode(type){
+  type = type || (seriesFlt==='days' ? 'days' : 'sound');
+  var ep = newEp(Number(getNextNum()) - 1);
+  ep.num = getNextNum();
+  ep.contentType = type;
+  ep.title = type === 'days' ? 'MUSUBI DAYS ' + ep.num : 'MUSUBI SOUND ' + ep.num;
+  eps.push(ep);
+  eps.sort(function(a,b){ return Number(a.num) - Number(b.num); });
+  saveEp(ep);
+  home();
+  openDet(ep.num);
+}
+
+function setSeries(f){ seriesFlt = f; home(); }
+
 function showFlt(f) { flt = f; setNav(f); home(); }
 
 function home() {
@@ -495,9 +628,19 @@ function home() {
   updProgress();
 
   var nx = getNext();
-  document.getElementById('nx-num').textContent = 'EP ' + nx.num;
-  document.getElementById('nx-ttl').textContent = nx.title || '（タイトル未設定）';
-  document.getElementById('nx-card').onclick = function(){ openDet(nx.num); };
+  document.getElementById('nx-num').textContent = nx ? ('EP ' + nx.num) : 'EP ---';
+  document.getElementById('nx-ttl').textContent = nx ? (nx.title || '（タイトル未設定）') : '新規エピソードを作成してください';
+  document.getElementById('nx-card').onclick = function(){ if(nx) openDet(nx.num); };
+
+  var sers = [{k:'all',l:'全シリーズ'},{k:'sound',l:'SOUND'},{k:'days',l:'DAYS'}];
+  document.getElementById('series-row').innerHTML = sers.map(function(f){
+    return '<button class="fil ' + (seriesFlt===f.k?'on':'') + '" data-series="'+f.k+'">'+f.l+'</button>';
+  }).join('');
+  document.querySelectorAll('[data-series]').forEach(function(b){
+    b.onclick = function(){ setSeries(b.dataset.series); };
+  });
+  var addBtn = document.getElementById('add-ep-btn');
+  if(addBtn) addBtn.onclick = function(){ createNewEpisode(seriesFlt==='days' ? 'days' : 'sound'); };
 
   var fls = [{k:'all',l:'すべて'}].concat(ST);
   document.getElementById('fil-row').innerHTML = fls.map(function(f){
@@ -507,13 +650,13 @@ function home() {
     b.onclick = function(){ flt = b.dataset.f; home(); };
   });
 
-  var list = flt==='all' ? eps : eps.filter(function(x){ return x.status===flt; });
+  var list = visibleBySeries(eps.filter(function(x){ return matchesStatus(x, flt); }));
   document.getElementById('ep-grid').innerHTML = list.length
     ? list.map(function(ep){
-        var st = getSt(ep.status);
         return '<div class="card" data-n="'+ep.num+'"><p class="c-num">'+ep.num+'</p>'
           +'<p class="c-ttl">'+(esc(ep.title)||'—')+'</p>'
-          +'<span class="bdg '+st.b+'">'+st.l+'</span></div>';
+          +badgesHtml(ep)
+          +'<span class="bdg b0" style="margin-top:4px">'+((ep.contentType||'sound')==='days'?'DAYS':'SOUND')+'</span></div>';
       }).join('')
     : '<p style="font-size:12px;color:#bbb;padding:16px">該当なし</p>';
 
@@ -534,14 +677,7 @@ function openDet(num) {
   dv.style.display = 'block';
   updProgress();
 
-  var curIdx = 0;
-  for (var si = 0; si < ST.length; si++) { if (ST[si].k === ep.status) { curIdx = si; break; } }
-  var sH = ST.map(function(s, idx){
-    var isDone = idx < curIdx;
-    var isCur = s.k === ep.status;
-    var cls = 'sp ' + (isCur ? s.s : (isDone ? 'sp-done' : ''));
-    return '<button class="'+cls+'" data-s="'+s.k+'">'+(isDone?'✓ ':'')+s.l+'</button>';
-  }).join('');
+  var sH = statusButtonsHtml(ep);
 
   var sunoF = [{k:'sA',l:'Suno A（王道）'},{k:'sB',l:'Suno B（Bossa Nova）'},{k:'sC',l:'Suno C（City Pop）'}];
   var infoF = [{k:'ytTitle',l:'③ YouTubeタイトル候補'},{k:'desc',l:'④ 概要欄',h:'140px'},{k:'tags',l:'⑤ ハッシュタグ'}];
@@ -569,6 +705,15 @@ function openDet(num) {
       +'<p class="toast" id="toast-msg">✓ 振り分け完了</p>'
     +'</div></div>'
 
+    // 種類
+    +'<div class="panel"><div class="p-hdr"><p class="p-ttl">シリーズ種類</p></div><div class="p-body">'
+      +'<select class="f-sel" data-f="contentType">'
+        +'<option value="sound" '+((ep.contentType||'sound')==='sound'?'selected':'')+'>MUSUBI SOUND（30分BGM）</option>'
+        +'<option value="days" '+((ep.contentType||'sound')==='days'?'selected':'')+'>MUSUBI DAYS（15分Vlog）</option>'
+      +'</select>'
+      +'<p style="font-size:10px;color:#aaa;margin-top:5px">DAYSは3枚画像＋画面テキスト用の項目を下に追加表示します</p>'
+    +'</div></div>'
+
     // タイトル
     +'<div class="panel"><div class="p-hdr"><p class="p-ttl">タイトル</p></div><div class="p-body">'
       +'<input class="f-in" type="text" data-f="title" value="'+escA(ep.title)+'" placeholder="Morning Cafe Jazz ☕ 朝のカフェ時間">'
@@ -588,6 +733,18 @@ function openDet(num) {
     +'</div><div class="p-body">'
       +'<p style="font-size:10px;color:#aaa;margin-bottom:3px">全文コピー = 基本プロンプト＋シーンを結合</p>'
       +'<textarea class="scene-ta" data-f="scene" placeholder="【今回のシーン】が自動で入ります">'+esc(ep.scene||'')+'</textarea>'
+    +'</div></div>'
+
+    // DAYS 3シーン
+    +'<div class="panel" id="days-panel" style="'+((ep.contentType||'sound')==='days'?'':'display:none')+'"><div class="p-hdr"><p class="p-ttl">MUSUBI DAYS 3シーン（画像＋画面テキスト）</p>'
+      +'<button class="cp-btn" id="days-all-cp">'+cpIco+' 3シーン全文コピー</button>'
+    +'</div><div class="p-body">'
+      +'<div class="pm"><div class="pm-hdr"><span class="pm-lbl">Scene 1 画像プロンプト</span><button class="cp-btn" data-dayscp="daysScene1Prompt">'+cpIco+' コピー</button></div><textarea class="scene-ta" data-f="daysScene1Prompt" placeholder="Scene 1 の画像プロンプト">'+esc(ep.daysScene1Prompt)+'</textarea></div>'
+      +'<div class="pm"><div class="pm-hdr"><span class="pm-lbl">Scene 1 画面テキスト</span><button class="cp-btn" data-cp="daysScene1Text">'+cpIco+' コピー</button></div><textarea class="f-ta" data-f="daysScene1Text" placeholder="例：今日も無事に終わった。">'+esc(ep.daysScene1Text)+'</textarea></div>'
+      +'<div class="pm"><div class="pm-hdr"><span class="pm-lbl">Scene 2 画像プロンプト</span><button class="cp-btn" data-dayscp="daysScene2Prompt">'+cpIco+' コピー</button></div><textarea class="scene-ta" data-f="daysScene2Prompt" placeholder="Scene 2 の画像プロンプト">'+esc(ep.daysScene2Prompt)+'</textarea></div>'
+      +'<div class="pm"><div class="pm-hdr"><span class="pm-lbl">Scene 2 画面テキスト</span><button class="cp-btn" data-cp="daysScene2Text">'+cpIco+' コピー</button></div><textarea class="f-ta" data-f="daysScene2Text" placeholder="例：少しだけ、自分を甘やかす。">'+esc(ep.daysScene2Text)+'</textarea></div>'
+      +'<div class="pm"><div class="pm-hdr"><span class="pm-lbl">Scene 3 画像プロンプト</span><button class="cp-btn" data-dayscp="daysScene3Prompt">'+cpIco+' コピー</button></div><textarea class="scene-ta" data-f="daysScene3Prompt" placeholder="Scene 3 の画像プロンプト">'+esc(ep.daysScene3Prompt)+'</textarea></div>'
+      +'<div class="pm"><div class="pm-hdr"><span class="pm-lbl">Scene 3 画面テキスト</span><button class="cp-btn" data-cp="daysScene3Text">'+cpIco+' コピー</button></div><textarea class="f-ta" data-f="daysScene3Text" placeholder="例：おつかれさま、わたし。">'+esc(ep.daysScene3Text)+'</textarea></div>'
     +'</div></div>'
 
     // Suno
@@ -624,22 +781,23 @@ function openDet(num) {
       +'</div>'
     +'</div></div>'
 
-    +'<div class="done-wrap"><button class="done-btn '+(ep.status==='done'?'is-done':'')+'" id="done-btn">'
-      +(ep.status==='done'?'✓ アップ済み':'アップ済みにする')
+    +'<div class="done-wrap"><button class="done-btn '+(ep.doneDone?'is-done':'')+'" id="done-btn">'
+      +(ep.doneDone?'✓ アップ済み':'アップ済みにする')
     +'</button></div>';
 
   // イベント設定
   document.getElementById('bk-btn').onclick = home;
 
   document.getElementById('done-btn').onclick = function(){
-    ep.status = ep.status==='done' ? 'edit' : 'done';
+    ep.doneDone = !ep.doneDone;
+    ep.status = calcStatus(ep);
     saveEp(ep); openDet(num);
   };
 
   document.querySelectorAll('#sr-row .sp').forEach(function(p){
     p.onclick = function(){
       var ns = p.dataset.s;
-      ep.status = (ep.status===ns && ns!=='todo') ? 'todo' : ns;
+      toggleStatusFlag(ep, ns);
       saveEp(ep); openDet(num);
     };
   });
@@ -648,8 +806,15 @@ function openDet(num) {
     var bulk = document.getElementById('bulk-ta').value;
     ep.bulk = bulk;
     var parsed = parseBulk(bulk);
+    if (parsed.contentType) { ep.contentType = parsed.contentType; }
     if (parsed.title)    { ep.title   = parsed.title;   }
     if (parsed.scene)    { ep.scene   = parsed.scene;   }
+    if (parsed.daysScene1Prompt) { ep.daysScene1Prompt = parsed.daysScene1Prompt; }
+    if (parsed.daysScene1Text)   { ep.daysScene1Text   = parsed.daysScene1Text;   }
+    if (parsed.daysScene2Prompt) { ep.daysScene2Prompt = parsed.daysScene2Prompt; }
+    if (parsed.daysScene2Text)   { ep.daysScene2Text   = parsed.daysScene2Text;   }
+    if (parsed.daysScene3Prompt) { ep.daysScene3Prompt = parsed.daysScene3Prompt; }
+    if (parsed.daysScene3Text)   { ep.daysScene3Text   = parsed.daysScene3Text;   }
     if (parsed.sA)       { ep.sA      = parsed.sA;      }
     if (parsed.sB)       { ep.sB      = parsed.sB;      }
     if (parsed.sC)       { ep.sC      = parsed.sC;      }
@@ -663,12 +828,25 @@ function openDet(num) {
   };
 
   dv.querySelectorAll('[data-f]').forEach(function(el){
+    if (el.tagName === 'SELECT') {
+      el.addEventListener('change', function(){
+        ep[el.dataset.f] = el.value;
+        var dp = document.getElementById('days-panel');
+        if (dp) dp.style.display = (el.value === 'days') ? '' : 'none';
+        saveEp(ep);
+      });
+    }
     el.addEventListener('blur', function(){
       ep[el.dataset.f] = el.value;
       if (el.dataset.f === 'title') {
         var tt = document.getElementById('d-ttl');
         if (tt) tt.textContent = el.value || '（タイトル未設定）';
       }
+      if (el.dataset.f === 'contentType') {
+        var dp = document.getElementById('days-panel');
+        if (dp) dp.style.display = (el.value === 'days') ? '' : 'none';
+      }
+      ep.status = calcStatus(ep);
       saveEp(ep);
     });
   });
@@ -690,6 +868,37 @@ function openDet(num) {
       setTimeout(function(){ btn.classList.remove('done'); btn.innerHTML = cpIco + ' 全文コピー'; }, 1500);
     }).catch(function(){});
   };
+
+
+  var daysAllBtn = document.getElementById('days-all-cp');
+  if (daysAllBtn) {
+    daysAllBtn.onclick = function(){
+      var parts = [];
+      ['daysScene1Prompt','daysScene2Prompt','daysScene3Prompt'].forEach(function(k, idx){
+        var el = dv.querySelector('[data-f="'+k+'"]');
+        var val = el ? el.value : '';
+        if (val) parts.push('Scene ' + (idx+1) + '\n' + BASE + '\n' + val);
+      });
+      var btn = this;
+      navigator.clipboard.writeText(parts.join('\n\n━━━━━━━━━━━━━━\n\n')).then(function(){
+        btn.classList.add('done'); btn.innerHTML = ckIco + ' コピー済';
+        setTimeout(function(){ btn.classList.remove('done'); btn.innerHTML = cpIco + ' 3シーン全文コピー'; }, 1500);
+      }).catch(function(){});
+    };
+  }
+
+  dv.querySelectorAll('[data-dayscp]').forEach(function(btn){
+    btn.onclick = function(){
+      var key = btn.dataset.dayscp;
+      var el = dv.querySelector('[data-f="'+key+'"]');
+      var txt = BASE + '\n' + (el ? el.value : '');
+      navigator.clipboard.writeText(txt).then(function(){
+        btn.classList.add('done'); var o = btn.innerHTML;
+        btn.innerHTML = ckIco + ' コピー済';
+        setTimeout(function(){ btn.classList.remove('done'); btn.innerHTML = o; }, 1200);
+      }).catch(function(){});
+    };
+  });
 
   dv.querySelectorAll('[data-cp]').forEach(function(btn){
     btn.onclick = function(){
