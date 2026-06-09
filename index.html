@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MUSUBI SOUND</title>
-<!-- supabase-only-sync-fixed -->
+<!-- supabase-only-sync-fixed / days-parser-robust-20260609 -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0ede6;color:#1a1a1a;}
@@ -678,9 +678,24 @@ function parseBulk(t) {
       out.text = mText[1].trim();
     }
 
-    // ラベルなしでブロックだけ取れた場合は画像プロンプト扱い
+    // ラベルなしでブロックだけ取れた場合の保険。
+    // 例：
+    // 【Scene 1】
+    // 夏の朝の静かなワンルーム...
+    // 画面テキスト
+    // 少しだけ早く目が覚めた朝。
+    // → 画像プロンプトラベルが無くても、画面テキスト以降を分離する。
     if (!out.prompt && !out.text && block) {
-      out.prompt = block.trim();
+      var autoSplit = block.match(
+        /([\s\S]*?)\n\s*(?:画面テキスト|Text|テロップ)\s*[:：]?\s*\n([\s\S]*)$/i
+      );
+
+      if (autoSplit) {
+        out.prompt = autoSplit[1].trim();
+        out.text = autoSplit[2].trim();
+      } else {
+        out.prompt = block.trim();
+      }
     }
 
     return out;
